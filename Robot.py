@@ -1,0 +1,180 @@
+import time
+import numpy as np
+from DNN import DNN
+from functions import get_random_Q_values, get_predicted_Q_values, epsilon_greedy_action
+from kinematics.sphero6DoF import sphero6DoF
+from klampt.model import ik,coordinates
+from buildWorld import *
+from Simmulation import Simulation
+
+
+"""
+# This class represents the reinforcement learning agent which
+# moves in the environment seeking the goal
+
+    Author: Jeet
+Data Modified: 04/11/2018 
+"""
+
+
+class Robot:
+    def __init__(self, simulation, gamma):
+        self.replay_cs = np.zeros((0, 2), dtype=np.int32)
+        self.replay_ca = np.zeros((0, 1), dtype=np.int32)
+        self.replay_r = np.zeros((0, 1), dtype=np.float32)
+        self.replay_ns = np.zeros((0, 2), dtype=np.int32)
+        self.gamma = gamma
+        self.simulation = simulation
+        self.c = 15
+        self.replay_size = 10000
+        self.sample_size = 256
+        self.learning_model = DNN()
+        dense_layers = np.array([8, 64, 256, 64])
+        activations = ["relu"]
+        loss_functions = "mean_squared_error"
+        optimizer_name = "Adam"
+        input_size = (2,)
+        output_size = self.simulation.actions.shape[0]
+        self.learning_model.create(input_size, output_size, dense_layers, activations,loss_functions, optimizer_name)
+        self.target_model = None
+        self.epochs = 10  # default values
+        self.decay = 0.99  # default values
+        self.epsilon_threshold = 0.01  # default values
+        self.max_step = 1000  # default values
+        self.epsilon = 1  # default values
+        self.start_pc = [0, 0, 0, 0, 0, 0]  # default values
+        self.goal_pc = [0.5, 0.5, 0, 0, 0, 0]  # default values
+        self.verbose = True  # default values
+        self.verbose_iteration = 1  # default values
+
+        self.epoch_count = 0  # to track the epoch since its triggered by simulator
+
+    def set_run_args(self, epochs, decay, epsilon_threshold, max_step, epsilon, start_pc, goal_pc,
+                     verbose, verbose_iteration):
+
+        '''
+        This method sets the running arguments for teh model
+
+        :param epochs: Number of epochs to train
+        :param decay: favtor decay the randomness
+        :param epsilon_threshold: minimum limit of randomness
+        :param max_step: maximum steps for each attempt
+        :param epsilon: randomness probability
+        :param start: start position cooridinate
+        :param verbose: boolean for print the message while training
+        :param verbose_iteration: number of iteration after msg will be printed
+        :return:
+        '''
+
+        self.epochs = epochs
+        self.decay = decay
+        self.epsilon_threshold = epsilon_threshold
+        self.max_step = max_step
+        self.epsilon = epsilon
+        self.start_pc = start_pc
+        self.goal_pc = goal_pc
+        self.verbose = verbose
+        self.verbose_iteration = verbose_iteration
+
+    # This methods is used to get the Q values for all the states us the the learning model
+    def get_Q_values(self, model, cs):
+        cs_Q = get_predicted_Q_values(model, cs)
+        return cs_Q
+
+    # This is method for implementing the Q learning where the agent
+    # tries to find the goal using the approximated Q values and update the
+    # Q values
+    def find_goal(self, epsilon, max_step):
+        cs = self.simulation.get_current_state()
+        step = 0
+        rewards = 0
+        goal_found = False
+        while True:
+            csQ = self.get_Q_values(self.learning_model, cs)
+            cs_maxQ, ca = epsilon_greedy_action(csQ, epsilon)
+            reward, ns, goal_reached = self.simulation.get_next_state(ca, step, csQ)
+
+            self.replay_cs = np.vstack((self.replay_cs, cs))
+            self.replay_ca = np.vstack((self.replay_ca, ca))
+            self.replay_r = np.vstack((self.replay_r, np.array([[reward]])))
+            self.replay_ns = np.vstack((self.replay_ns, ns))
+            rewards += reward
+            if goal_reached:
+                goal_found
+                break
+            elif step >= max_step:
+                break
+            else:
+                step += 1
+                cs = ns
+
+        step += 1
+        # return the state space created in this training
+        return step, rewards, goal_found
+
+    ''' This method refers to the learning phase of the agent
+        Use verbose to print training message and verbose_iteration to print after verbose_iteration'''
+
+    def learn(self):
+        steps = []
+        rewards = []
+        self.simulation.robot.setConfig(self.start_pc)
+        for epoch in range(1, self.epochs + 1):
+            self.simulation.reset(self.start_pc)
+            diff = self.replay_cs.shape[0] - self.replay_size
+            if diff > 0:
+                self.replay_cs = np.delete(self.replay_cs, (range(0, diff)), axis=0)
+                self.replay_ca = np.delete(self.replay_ca, (range(0, diff)), axis=0)
+                self.replay_r = np.delete(self.replay_r, (range(0, diff)), axis=0)
+                self.replay_ns = np.delete(self.replay_ns, (range(0, diff)), axis=0)
+
+            if epoch % self.c == 1:
+                self.target_model = self.learning_model.copy()
+
+            step, reward, goal_found = self.find_goal(self.epsilon, self.max_step)
+            rewards.append(reward)
+            steps.append(step)
+
+            if self.replay_cs.shape[0] < self.sample_size:
+                sample_size = self.replay_cs.shape[0]
+            else:
+                sample_size = self.sample_size
+            idx = np.random.choice(self.replay_cs.shape[0], size=sample_size, replace=False)
+            cs = self.replay_cs[idx]
+            ca = self.replay_ca[idx]
+            r = self.replay_r[idx]
+            ns = self.replay_ns[idx]
+            target_Q = self.get_Q_values(self.target_model, cs)
+            for i in range(ca.shape[0]):
+                target_Q[i, ca[i]] = r[i] + self.gamma * np.max(
+                    self.get_Q_values(self.target_model, ns[i].reshape(1, -1)))
+            # select mini batch
+            self.learning_model.train(cs, target_Q, epochs=1, batch_size=128, verbose=0)
+
+            # To display training messages
+            if self.verbose and epoch % self.verbose_iteration == 0:
+                print("Epoch:", epoch, "Epsilon:", np.round(self.epsilon, 4), "Steps: ", step, "Rewards: ", reward)
+
+            if self.epsilon > self.epsilon_threshold:
+                self.epsilon *= self.decay
+            else:
+                self.epsilon = 0
+        return steps, rewards
+
+    # This method refers to the phase where the agent finds the goal
+    # using the learned policy
+    def get_path(self, start_pc):
+        self.simulation.reset(self.start_pc)
+        self.find_goal(self.epsilon, self.max_step, start_pc)
+        return self.path
+
+    # This is a method to predict the Q value for all the states and action
+    def get_all_Q_values(self):
+        Q = np.zeros((self.env.get_size()[0], self.env.get_size()[1], len(self.env.get_actions())))
+        for i in range(self.env.get_size()[0]):
+            for j in range(self.env.get_size()[1]):
+                for k in range(self.env.get_actions().shape[0]):
+                    state = np.array([[i, j]])
+                    action = np.array([[k]])
+                    Q[i][j] = self.learning_model.predict(state, action)
+        return Q
