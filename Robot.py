@@ -23,6 +23,7 @@ class Robot:
         self.replay_ca = np.zeros((0, 1), dtype=np.int32)
         self.replay_r = np.zeros((0, 1), dtype=np.float32)
         self.replay_ns = np.zeros((0, 2), dtype=np.int32)
+        self.replay_cs_type = np.zeros((0, 1), dtype=np.int32)
         self.gamma = gamma
         self.simulation = simulation
         self.c = 15
@@ -100,11 +101,14 @@ class Robot:
             self.replay_ns = np.vstack((self.replay_ns, ns))
             rewards += reward
             if goal_reached:
+                self.replay_cs_type = np.vstack((self.replay_cs_type, np.array([[1]])))
                 goal_found
                 break
             elif step >= max_step:
+                self.replay_cs_type = np.vstack((self.replay_cs_type, np.array([[0]])))
                 break
             else:
+                self.replay_cs_type = np.vstack((self.replay_cs_type, np.array([[0]])))
                 step += 1
                 cs = ns
 
@@ -144,10 +148,16 @@ class Robot:
             ca = self.replay_ca[idx]
             r = self.replay_r[idx]
             ns = self.replay_ns[idx]
+            cs_type = self.replay_cs_type[idx]
             target_Q = self.get_Q_values(self.target_model, cs)
             for i in range(ca.shape[0]):
-                target_Q[i, ca[i]] = r[i] + self.gamma * np.max(
-                    self.get_Q_values(self.target_model, ns[i].reshape(1, -1)))
+                if cs_type[i] == 1:
+                    target_Q[i, ca[i]] = r[i]
+                else:
+
+                    target_Q[i, ca[i]] = r[i] + self.gamma * np.max(
+                        self.get_Q_values(self.target_model, ns[i].reshape(1, -1)))
+
             # select mini batch
             self.learning_model.train(cs, target_Q, epochs=1, batch_size=128, verbose=0)
 
