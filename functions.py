@@ -34,7 +34,7 @@ def get_random_Q_values(shape):
 def get_predicted_Q_values(learning_model, state):
     # This  Method predicts the Q values for all the actions at a given state
     # using  the learning model
-    Q = learning_model.predict(state)
+    Q = learning_model.predict(state)  # 1e-30 to avoid 0 values for this state always
     return Q
 
 

@@ -22,15 +22,15 @@ if __name__ == "__main__":
     np.random.seed(41)
     simulation = Simulation(world)
     start_pc = [0, 0, 0.0, 0.02, 0, 0]
-    goal_pc = [-0.5, -1.1, 0.02, 0, 0, 0]
+    goal_pc = [-0.8, -0.9, 0.02, 0, 0, 0]
     simulation.create(start_pc, goal_pc)
     gamma = 0.99
     agent = Robot(simulation, gamma)
 
-    epochs = 30000
-    decay = 0.99
-    max_step = 1000
-    epsilon = 0.8
+    epochs = 10000
+    decay = 0.993
+    max_step = 2000
+    epsilon = 1
     epsilon_threshold = 0.0001
     verbose = True
     verbose_iteration = 1

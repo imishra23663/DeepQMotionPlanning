@@ -26,7 +26,7 @@ class Simulation:
         self.start_pc = None
         self.goal_pc = None
         self.goal_range = 0.2  # size of the goal
-        self.terrain_limit = [1.3, 1.3, 0]
+        self.terrain_limit = [1, 1, 0]
         self.vis = None
 
     def reset(self, spc):
@@ -115,7 +115,7 @@ class Simulation:
                              color, self.goal_pc)
 
         # Create a obstacle cube
-        n_objects = 5
+        n_objects = 4
         width = 0.2
         depth = 0.2
         height = 0.2
@@ -203,8 +203,6 @@ class Simulation:
 
         # Update the robot positions
         if boundary_reached:
-            # compute the distnce from teh previous position
-            distance = self.check_goal_distance(old_pc)
             reward = self.reward_system['boundary']
             print("Hit Boundary", reward)
             state = np.array([[pc[0], pc[1]]])
@@ -236,9 +234,7 @@ class Simulation:
             reward = self.reward_system['goal']
             goal_reached = True
         else:
-            if distance < 0.3:
-                distance = 0.3
-            reward = self.reward_system['free'] * distance
+            reward = self.reward_system['free']*distance
 
         label_reward = "Reward: " + str(reward)
         vis.addText("textReward", label_reward)

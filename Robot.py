@@ -26,9 +26,9 @@ class Robot:
         self.replay_cs_type = np.zeros((0, 1), dtype=np.int32)
         self.gamma = gamma
         self.simulation = simulation
-        self.c = 15
+        self.c = 10
         self.replay_size = 10000
-        self.sample_size = 256
+        self.sample_size = 32
         self.learning_model = DNN()
         dense_layers = np.array([8, 64, 256, 64])
         activations = ["relu"]
@@ -91,7 +91,7 @@ class Robot:
         rewards = 0
         goal_found = False
         while True:
-            csQ = self.get_Q_values(self.learning_model, cs)
+            csQ = self.get_Q_values(self.target_model, cs)
             cs_maxQ, ca = epsilon_greedy_action(csQ, epsilon)
             reward, ns, goal_reached = self.simulation.get_next_state(ca, step, csQ)
 
@@ -101,16 +101,39 @@ class Robot:
             self.replay_ns = np.vstack((self.replay_ns, ns))
             rewards += reward
             if goal_reached:
+                print("Goal Found")
                 self.replay_cs_type = np.vstack((self.replay_cs_type, np.array([[1]])))
                 goal_found
                 break
-            elif step >= max_step:
+            elif step >= max_step-1:
                 self.replay_cs_type = np.vstack((self.replay_cs_type, np.array([[0]])))
                 break
             else:
                 self.replay_cs_type = np.vstack((self.replay_cs_type, np.array([[0]])))
                 step += 1
                 cs = ns
+
+            if self.replay_cs.shape[0] < self.sample_size:
+                sample_size = self.replay_cs.shape[0]
+            else:
+                sample_size = self.sample_size
+            idx = np.random.choice(self.replay_cs.shape[0], size=sample_size, replace=False)
+            cs_mb = self.replay_cs[idx]
+            ca_mb = self.replay_ca[idx]
+            r_mb = self.replay_r[idx]
+            ns_mb = self.replay_ns[idx]
+            cs_type_mb = self.replay_cs_type[idx]
+            target_Q = self.get_Q_values(self.target_model, cs_mb)
+            for i in range(ca_mb.shape[0]):
+                if cs_type_mb[i] == 1:
+                    target_Q[i, ca_mb[i]] = r_mb[i]
+                else:
+
+                    target_Q[i, ca_mb[i]] = r_mb[i] + self.gamma * np.max(
+                        self.get_Q_values(self.target_model, ns_mb[i].reshape(1, -1)))
+
+            # select mini batch
+            self.learning_model.train(cs_mb, target_Q, epochs=1, batch_size=64, verbose=0)
 
         step += 1
         # return the state space created in this training
@@ -138,28 +161,6 @@ class Robot:
             step, reward, goal_found = self.find_goal(self.epsilon, self.max_step)
             rewards.append(reward)
             steps.append(step)
-
-            if self.replay_cs.shape[0] < self.sample_size:
-                sample_size = self.replay_cs.shape[0]
-            else:
-                sample_size = self.sample_size
-            idx = np.random.choice(self.replay_cs.shape[0], size=sample_size, replace=False)
-            cs = self.replay_cs[idx]
-            ca = self.replay_ca[idx]
-            r = self.replay_r[idx]
-            ns = self.replay_ns[idx]
-            cs_type = self.replay_cs_type[idx]
-            target_Q = self.get_Q_values(self.target_model, cs)
-            for i in range(ca.shape[0]):
-                if cs_type[i] == 1:
-                    target_Q[i, ca[i]] = r[i]
-                else:
-
-                    target_Q[i, ca[i]] = r[i] + self.gamma * np.max(
-                        self.get_Q_values(self.target_model, ns[i].reshape(1, -1)))
-
-            # select mini batch
-            self.learning_model.train(cs, target_Q, epochs=1, batch_size=128, verbose=0)
 
             # To display training messages
             if self.verbose and epoch % self.verbose_iteration == 0:
