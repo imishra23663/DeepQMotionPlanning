@@ -4,6 +4,7 @@ import numpy as np
 from Robot import Robot
 from klampt import WorldModel
 from Simmulation import Simulation
+from keras.models import load_model
 from threading import Thread
 from Builder import Builder
 
@@ -21,13 +22,14 @@ if __name__ == "__main__":
     # np.random.seed(11)
     np.random.seed(41)
     simulation = Simulation(world)
-    start_pc = [0, 0, 0.0, 0.02, 0, 0]
+    start_pc = [-0.4, 0.6, 0.0, 0.02, 0, 0]
     goal_pc = [-0.8, -0.9, 0.02, 0, 0, 0]
     simulation.create(start_pc, goal_pc)
     gamma = 0.99
     agent = Robot(simulation, gamma)
 
-    epochs = 10000
+if len(sys.argv) > 2 and sys.argv[2] == 'train':
+    epochs = 3000
     decay = 0.993
     max_step = 2000
     epsilon = 1
@@ -36,15 +38,15 @@ if __name__ == "__main__":
     verbose_iteration = 1
     agent.set_run_args(epochs, decay, epsilon_threshold, max_step, epsilon, start_pc, goal_pc, verbose,
                        verbose_iteration)
-
-    # thread = Thread(target=simulation.run)
-    # thread.start()
     agent.learn()
-
-    simulation.vis.kill()
     # Save the model
-    agent.learning_model.save("model.h5")
+    agent.learning_model.save("model/model.h5")
     # To suppress scientific notation
     np.set_printoptions(suppress=True)
-    print(agent.get_path(start_pc))
-    #thread.join()
+else:
+    agent.learning_model.load("model/model.h5")
+    step, reward, trajectory = agent.get_path(start_pc)
+    print(step, reward)
+    print(trajectory)
+
+simulation.vis.kill()

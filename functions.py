@@ -47,7 +47,7 @@ def epsilon_greedy_action(QValues, epsilon=0.01):
     action = np.random.choice(equal_max)
 
     if np.random.random() < epsilon:
-        random_action = np.random.randint(4)
+        random_action = np.random.randint(QValues.shape[1])
         action = random_action
         max_Q = QValues[0, action]
 

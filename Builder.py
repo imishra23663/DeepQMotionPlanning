@@ -62,7 +62,7 @@ class Builder:
             g = Geometry3D(elem)
             cubegeom.setElement(i, g)
 
-        if object_type == "rigid":
+        if object_type == "rigid" or object_type == "goal":
             cube = world.makeRigidObject(name)
         else:
             cube = world.makeTerrain(name)

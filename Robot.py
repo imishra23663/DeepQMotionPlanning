@@ -1,11 +1,7 @@
 import time
 import numpy as np
 from DNN import DNN
-from functions import get_random_Q_values, get_predicted_Q_values, epsilon_greedy_action
-from kinematics.sphero6DoF import sphero6DoF
-from klampt.model import ik,coordinates
-from buildWorld import *
-from Simmulation import Simulation
+from functions import get_predicted_Q_values, epsilon_greedy_action
 
 
 """
@@ -19,16 +15,16 @@ Data Modified: 04/11/2018
 
 class Robot:
     def __init__(self, simulation, gamma):
-        self.replay_cs = np.zeros((0, 2), dtype=np.int32)
+        self.replay_cs = np.zeros((0, 2), dtype=np.float32)
         self.replay_ca = np.zeros((0, 1), dtype=np.int32)
         self.replay_r = np.zeros((0, 1), dtype=np.float32)
-        self.replay_ns = np.zeros((0, 2), dtype=np.int32)
+        self.replay_ns = np.zeros((0, 2), dtype=np.float32)
         self.replay_cs_type = np.zeros((0, 1), dtype=np.int32)
         self.gamma = gamma
         self.simulation = simulation
         self.c = 10
-        self.replay_size = 10000
-        self.sample_size = 32
+        self.replay_size = 50000
+        self.sample_size = 64
         self.learning_model = DNN()
         dense_layers = np.array([8, 64, 256, 64])
         activations = ["relu"]
@@ -54,7 +50,7 @@ class Robot:
                      verbose, verbose_iteration):
 
         '''
-        This method sets the running arguments for teh model
+        This method sets the running arguments for the model
 
         :param epochs: Number of epochs to train
         :param decay: favtor decay the randomness
@@ -91,9 +87,9 @@ class Robot:
         rewards = 0
         goal_found = False
         while True:
-            csQ = self.get_Q_values(self.target_model, cs)
+            csQ = self.get_Q_values(self.learning_model, cs)
             cs_maxQ, ca = epsilon_greedy_action(csQ, epsilon)
-            reward, ns, goal_reached = self.simulation.get_next_state(ca, step, csQ)
+            reward, ns, goal_reached = self.simulation.get_next_state(ca, step)
 
             self.replay_cs = np.vstack((self.replay_cs, cs))
             self.replay_ca = np.vstack((self.replay_ca, ca))
@@ -123,7 +119,7 @@ class Robot:
             r_mb = self.replay_r[idx]
             ns_mb = self.replay_ns[idx]
             cs_type_mb = self.replay_cs_type[idx]
-            target_Q = self.get_Q_values(self.target_model, cs_mb)
+            target_Q = self.get_Q_values(self.learning_model, cs_mb)
             for i in range(ca_mb.shape[0]):
                 if cs_type_mb[i] == 1:
                     target_Q[i, ca_mb[i]] = r_mb[i]
@@ -174,10 +170,25 @@ class Robot:
 
     # This method refers to the phase where the agent finds the goal
     # using the learned policy
-    def get_path(self, start_pc):
-        self.simulation.reset(self.start_pc)
-        self.find_goal(self.epsilon, self.max_step, start_pc)
-        return self.path
+    def get_path(self, start_pc, epsilon=0):
+        self.simulation.reset(start_pc)
+        trajectory = np.zeros((0, 2), dtype=np.float32)
+        cs = self.simulation.get_current_state()
+        step = 0
+        rewards = 0
+        while True:
+            trajectory = np.vstack((trajectory, cs))
+            csQ = self.get_Q_values(self.learning_model, cs)
+            cs_maxQ, ca = epsilon_greedy_action(csQ, epsilon)
+            reward, ns, goal_reached = self.simulation.get_next_state(ca, step, query=True)
+            rewards += rewards
+            step += 1
+            if goal_reached:
+                trajectory = np.vstack((trajectory, ns))
+                break
+            cs = ns
+
+        return step, rewards, trajectory
 
     # This is a method to predict the Q value for all the states and action
     def get_all_Q_values(self):

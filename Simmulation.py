@@ -18,14 +18,15 @@ class Simulation:
         self.world = world
         self.robot = None
         self.collision_checker = None
-        self.step_size = 0.05
-        # self.actions = np.radians(np.arange(180,-180,-90))
-        self.actions = np.array([-np.pi, 0, np.pi/2, -np.pi/2])
+        self.step_size = 0.03
+        self.actions = np.radians(np.arange(180, -180, -45))
+        # self.actions = np.array([np.pi, np.pi/2, 0, -np.pi/2])
+        self.actions = np.array([-np.pi, 0, np.pi / 2, -np.pi / 2])
         self.reward_system = {"collision": -1, "boundary": -100, "free": -0.1, "goal": 200}
         self.distance_factor = 0.05
         self.start_pc = None
         self.goal_pc = None
-        self.goal_range = 0.2  # size of the goal
+        self.goal_range = 0.1  # size of the goal
         self.terrain_limit = [1, 1, 0]
         self.vis = None
 
@@ -140,28 +141,21 @@ class Simulation:
         self.robot.setConfig(start_pc)
 
         # Create the axis representation
-        #vis.add("WCS", [so3.identity(), [0, 0, 0]])
-        #vis.setAttribute("WCS", "size", 24)
+        # vis.add("WCS", [so3.identity(), [0, 0, 0]])
+        # vis.setAttribute("WCS", "size", 24)
 
         # Add text messages component for collision check and robot position
         vis.addText("textCol", "No collision")
         vis.setAttribute("textCol", "size", 24)
+
         vis.addText("textStep", "Steps: ")
         vis.setAttribute("textStep", "size", 24)
 
         vis.addText("textGoalDistance", "Goal Distance: ")
         vis.setAttribute("textGoalDistance", "size", 24)
 
-        vis.addText("textReward", "Reward: ")
-        vis.setAttribute("textReward", "size", 20)
-
-        vis.addText("textQ", "QValues: ")
-        vis.setAttribute("textQ", "size", 20)
-
         vis.addText("textConfig", "Robot configuration: ")
         vis.setAttribute("textConfig", "size", 24)
-        #vis.addText("textbottom", "WCS: X-axis Red, Y-axis Green, Z-axis Blue", (20, -30))
-
         self.collision_checker = collide.WorldCollider(self.world)
 
         vis.setWindowTitle("Simulator")
@@ -179,12 +173,14 @@ class Simulation:
         state = np.array([[config[0], config[1]]])
         return state
 
-    def get_next_state(self, action, step_count, Qs):
+    def get_next_state(self, action, step_count, query=False):
         """
         This method implements the take action functionality by asking the robot to take the action, and return the
         next robot configuration
         :param action: action to take
         :param step_count: Number of steps taken by the robot so far
+        :param query: A boolean variable denotes weather it slearning phase or query phase, if it is a query phase
+                      add a delay for better visualization
         :return:
         """
         pc = self.robot.getConfig()
@@ -197,18 +193,11 @@ class Simulation:
         pc[4] = 0
         pc[5] = 0
 
+        self.robot.setConfig(pc)
         boundary_reached = False
         if np.abs(pc[0]) > self.terrain_limit[0] or np.abs(pc[1]) > self.terrain_limit[1]:
             boundary_reached = True
 
-        # Update the robot positions
-        if boundary_reached:
-            reward = self.reward_system['boundary']
-            print("Hit Boundary", reward)
-            state = np.array([[pc[0], pc[1]]])
-            return reward, state, False
-
-        self.robot.setConfig(pc)
         q2f = ['{0:.2f}'.format(elem) for elem in pc]
         label = "Steps: " + str(step_count)
         vis.addText("textStep", label)
@@ -224,7 +213,14 @@ class Simulation:
         vis.addText("textConfig", label)
         collision = self.check_collision()
         goal_reached = False
-        if collision:
+
+        # Update the robot positions
+        if boundary_reached:
+            self.robot.setConfig(old_pc)
+            reward = self.reward_system['boundary']
+            print("Hit Boundary", reward)
+            pc = old_pc
+        elif collision:
             self.robot.setConfig(old_pc)
             reward = self.reward_system['collision']
             print("Collision", reward)
@@ -236,13 +232,11 @@ class Simulation:
         else:
             reward = self.reward_system['free']*distance
 
-        label_reward = "Reward: " + str(reward)
-        vis.addText("textReward", label_reward)
-        label_Qs = "Qvalues: " + str(Qs)
-        vis.addText("textQ", label_Qs)
-
         # send only the x and y position
         state = np.array([[pc[0], pc[1]]])
+
+        if query:
+            time.sleep(0.1)
 
         return reward, state, goal_reached
 

@@ -2,6 +2,7 @@ import keras
 from keras.models import Model, load_model
 from keras.layers import Input, Dense, Dropout
 from keras.models import clone_model
+from keras.layers import initializers
 
 """
 This class represents a General Purpose Deep Neural Network creates the desired neural network architecture based on
@@ -42,7 +43,8 @@ class DNN:
         last_layer = input_layer
         # Iterate to create the layers
         for i in range(dense_layers.shape[0]):
-            last_layer = Dense(dense_layers[i], activation=activations[0])(last_layer)
+            last_layer = Dense(dense_layers[i], kernel_initializer='glorot_uniform',
+                               activation=activations[0])(last_layer)
             if dropouts is not None and dropouts[i] > 0:
                 last_layer = Dropout(dropouts[i])(last_layer)
 
