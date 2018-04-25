@@ -189,14 +189,3 @@ class Robot:
             cs = ns
 
         return step, rewards, trajectory
-
-    # This is a method to predict the Q value for all the states and action
-    def get_all_Q_values(self):
-        Q = np.zeros((self.env.get_size()[0], self.env.get_size()[1], len(self.env.get_actions())))
-        for i in range(self.env.get_size()[0]):
-            for j in range(self.env.get_size()[1]):
-                for k in range(self.env.get_actions().shape[0]):
-                    state = np.array([[i, j]])
-                    action = np.array([[k]])
-                    Q[i][j] = self.learning_model.predict(state, action)
-        return Q

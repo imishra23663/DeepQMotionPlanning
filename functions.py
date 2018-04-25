@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 """
 This file contains the utility helper functions that is used in the other classes
@@ -52,3 +53,42 @@ def epsilon_greedy_action(QValues, epsilon=0.01):
         max_Q = QValues[0, action]
 
     return max_Q, action
+
+
+def plot_Q_contour(agent, start, goal, terrain_limit):
+    xs = np.round(np.arange(-terrain_limit[0], terrain_limit[0], 0.05).reshape(-1, 1), 3)
+    ys = np.round(np.arange(-terrain_limit[1], terrain_limit[1], 0.05).reshape(-1, 1), 3)
+    X, Y = np.meshgrid(xs, ys)
+
+    # state the state matrix
+    states = np.zeros((xs.shape[0]*ys.shape[0], 2))
+    for i in range(xs.shape[0]):
+        for j in range(ys.shape[0]):
+            states[i*ys.shape[0]+j, 0] = xs[i, 0]
+            states[i*ys.shape[0]+j, 1] = ys[j, 0]
+    Q_values = get_predicted_Q_values(agent.learning_model, states)
+    maxQ = np.max(Q_values, axis=1)
+    # create A 2d matrix for denoting q value for each state
+    Q = np.zeros((xs.shape[0], ys.shape[0]))
+    for i in range(xs.shape[0]):
+        for j in range(ys.shape[0]):
+            Q[i, j] = maxQ[i*ys.shape[0]+j]
+
+    plt.figure()
+    cs = plt.contourf(X, Y, Q)
+    plt.colorbar(cs)
+    plt.text(goal[1], goal[0], 'G')
+    plt.text(start[1], start[0], 'S')
+    plt.ylabel("max Q")
+    plt.show()
+
+
+def plot_trajectory(path, terrain_limit):
+    path_x = path[:, 0]
+    path_y = path[:, 0]
+    plt.figure()
+    plt.plot(path_y, path_x, color='black')
+    plt.xlim([-terrain_limit[0], terrain_limit[0]])
+    plt.ylim([-terrain_limit[1], terrain_limit[1]])
+    plt.show()
+

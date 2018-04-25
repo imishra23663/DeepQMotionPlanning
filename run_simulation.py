@@ -7,6 +7,8 @@ from Simmulation import Simulation
 from keras.models import load_model
 from threading import Thread
 from Builder import Builder
+import matplotlib.pyplot as plt
+from functions import plot_trajectory, plot_Q_contour
 
 if __name__ == "__main__":
     if len(sys.argv)<=1:
@@ -46,7 +48,10 @@ if len(sys.argv) > 2 and sys.argv[2] == 'train':
 else:
     agent.learning_model.load("model/model.h5")
     step, reward, trajectory = agent.get_path(start_pc)
+    np.set_printoptions(suppress=True)
     print(step, reward)
     print(trajectory)
+    plot_trajectory(trajectory, simulation.terrain_limit)
+    plot_Q_contour(agent, start_pc, goal_pc, simulation.terrain_limit)
 
 simulation.vis.kill()

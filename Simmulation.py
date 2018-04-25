@@ -236,7 +236,7 @@ class Simulation:
         state = np.array([[pc[0], pc[1]]])
 
         if query:
-            time.sleep(0.1)
+            time.sleep(0.002)
 
         return reward, state, goal_reached
 

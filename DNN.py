@@ -97,7 +97,7 @@ class DNN:
         else:
             self.model.fit(X_train, Y_train, validation_data=(X_test, Y_test), batch_size=batch_size, verbose=verbose)
 
-    def predict(self, X, batch_size=64):
+    def predict(self, X, batch_size = 256):
         """
         This function predicts the out for the given input
         :param X: Input features
